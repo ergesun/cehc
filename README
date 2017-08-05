@@ -1,0 +1,34 @@
+curl + epoll http client service
+
+- 简介
+  这是一个curl multi接口和epoll结合的支持高并发的http client service。
+  所有接口都是线程安全的。
+
+- 使用(代码中有足够的注释供您参考，另外可以参考main.cpp的代码)
+  ！！注意：
+  ！ -> 以下所有调用均需要检查返回值
+  ！ -> cehc_connection_t中的回调要求为non-blocking的(你也可以用非non-blocking的，但事件循环性能差后果自负)
+  ！ -> 当前没有connection的连接池。
+  ！      --> 这里其实只是想做对象池以减少碎片，socket连接的复用性还是需要http的keep-alive来控制。
+  ！          由于此非libcurl+epoll异步高并发主线的问题，故懒得写。。。
+  ！      --> 建议：可以通过mem poll + bitmap<conn>解决，也可以mem poll + array<conn>
+  ！
+  ！ -> 经测试，libcurl不支持epoll的edge trigger，所以当前的epoll事件均为level trigger(没有太深入研究，
+  ！    觉得curl的multi机制用level trigger还算合适，再大的并发也就是个client的并发，注释中也有说明)。
+
+  -> main函数的最开始调用cehc_init_curl_global_service()且全局仅一次(包括你自己的其他模块，以及使用的任何库)
+  -> 调用cehc_new_http_service或cehc_new_http_service_by_default_params创建一个http client service
+     ！！注意：你可以使用多个cehc http serivce以充分利用多核来进行事件循环。
+  -> 调用cehc_run_http_serivce启动http client service(全局无需停止，除非不想用了)
+  -> 调用cehc_new_conn创建一个连接
+  -> 调用curl的各种设置对easy handle进行配置(cehc_new_conn函数说明中声明的！保留属性，重要！除外。
+     为了方便user使用，将CURLOPT_WRITEFUNCTION、CURLOPT_READFUNCTION、CURLOPT_HEADERFUNCTION等进行了封装，
+     回调不够了user可以自行在cehc_new_conn之后自己调用curl api进行设置)。
+     比如说设置为CURLOPT_UPLOAD、CURLOPT_PUT、CURLOPT_HTTPHEADER等等等等。
+     curl的用法参考curl文档吧，本类库只负责调度管理。
+  -> 调用cehc_run_conn执行一个连接
+  -> 通过cehc_connection_t中的回调使用即可
+  -> conn结束任务之后需要调用cehc_delete_conn释放
+  -> http client service不用了需要调用cehc_delete_http_serivce释放
+  -> 全局curl服务不用了需要调用cehc_uninit_curl_global_service释放
+     ！！注意：其他你用到curl的地方如果还在用就不要调这个函数
