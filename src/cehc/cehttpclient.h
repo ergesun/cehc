@@ -34,7 +34,6 @@ typedef struct cehc_http_service_s {
     CURLM *multi;
     int running_count;
     volatile bool stop;
-    // TODO(sunchao): 考虑优化或者放弃boost timer而是自己通过rbtree实现以优化性能。
     Timer *timer;
     Timer::TimerCallback timer_cb;
     pthread_t tid;
